@@ -1,2 +1,4 @@
 # Grid-trading
-Grid trading back test algorithm
+Some naive trading strategy.
+
+The file '国债期货'
