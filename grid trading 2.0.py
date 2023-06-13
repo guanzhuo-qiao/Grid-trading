@@ -44,7 +44,7 @@ import tushare as ts
 df = ts.get_k_data('000011',start='2015-05-10')
 df.set_index(pd.to_datetime(df.date),inplace=True)
 df.drop(['date','code'],axis=1, inplace=True)
-data = df.ix[:,['close','open']]
+data = df[['close','open']]
 ################################################
 ###########################策略参数设置#############
 beta=0.2
@@ -70,10 +70,10 @@ grids = grid(base,ceil,beta,alpha,n)
 p_lag=[]#参考档位，当一交易完成后，参考档位挪至这一交易完成的价格，在这一参考档位上下相邻的网格线进行下一步的判断
 tactic = []#1买进，-1卖出，0观望
 """初始化   当价格触碰到某一网格线时，生成买入信号"""
-ini_dop=float(grids[grids<=data.ix[0,0]].max())#下限价格(initial down price)
-ini_dod=int(grids[grids<=data.ix[0,0]].idxmax())#下限索引(initial down index)
-ini_upp=float(grids[grids>=data.ix[0,0]].min())#上限价格(initial up price)
-ini_upd=int(grids[grids>=data.ix[0,0]].idxmin())#上限索引(initial up index)
+ini_dop=float(grids[grids<=data.iloc[0,0]].max())#下限价格(initial down price)
+ini_dod=int(grids[grids<=data.iloc[0,0]].idxmax())#下限索引(initial down index)
+ini_upp=float(grids[grids>=data.iloc[0,0]].min())#上限价格(initial up price)
+ini_upd=int(grids[grids>=data.iloc[0,0]].idxmin())#上限索引(initial up index)
 
 for m in range(0,len(data)):
        if ini_dod ==ini_upd:
@@ -81,11 +81,11 @@ for m in range(0,len(data)):
               p_lag.append(ini_dod)
               break
        else:
-              if data.ix[m,0]>=ini_upp:
+              if data.iloc[m,0]>=ini_upp:
                      tactic.append(1)
                      p_lag.append(ini_upd)               
                      break
-              elif data.ix[m,0]<=ini_dop:
+              elif data.iloc[m,0]<=ini_dop:
                      tactic.append(1)
                      p_lag.append(ini_dod)
                      break
@@ -96,10 +96,10 @@ for m in range(0,len(data)):
 """信号生成过程"""
 for i in range(m+1,len(data)):
        if p_lag[-1] not in  (grids.iloc[0,0],grids.iloc[-1,0]):
-              if data.ix[i,0]>=grids.ix[p_lag[-1]-1,0]:
+              if data.iloc[i,0]>=grids.iloc[p_lag[-1]-1,0]:
                      tactic.append(-1)
                      p_lag.append(p_lag[-1]-1)
-              elif data.ix[i,0]<=grids.ix[p_lag[-1]+1,0]:
+              elif data.iloc[i,0]<=grids.iloc[p_lag[-1]+1,0]:
                      tactic.append(1)
                      p_lag.append(p_lag[-1]+1)
               else:
@@ -108,7 +108,7 @@ for i in range(m+1,len(data)):
        else:#到达阈值则一直空仓
               tactic.append(0)
               p_lag.append(p_lag[-1])
-strategy = pd.DataFrame({'open':data.ix[:,'open'],'close':data.ix[:,'close'],'tactic':tactic,'p_lag':p_lag},
+strategy = pd.DataFrame({'open':data['open'],'close':data['close'],'tactic':tactic,'p_lag':p_lag},
                          index=data.index)#信号列表，包含按当日收盘价判断的买卖信号与调仓后的参考档位
 ######################################################
 ################仓位生成####################
@@ -133,24 +133,24 @@ addup = [1000000]#总市值=资金迟+证券池
 
 #当日的收盘价用以结算，当日开盘价用以执行前一天策略
 for p in range(len(tactic)-1):
-       if strategy.ix[p,'tactic']in (0 , np.NaN):#观望
+       if strategy['tactic'].iloc[p] in (0 , np.NaN):#观望
               pool.append(pool[-1])
               amount.append(amount[-1])
-              security.append(amount[-1]*data.ix[p+1,'close'])
-       elif strategy.ix[p,'tactic']==1:#买进
-              pos = positions[int(strategy.ix[p,'p_lag'])]
-              delta = pos*(pool[-1]+amount[-1]*data.ix[p+1,'open'])-\
-                          data.ix[p+1,'open']*amount[-1]
-              amount.append(amount[-1]+delta/data.ix[p+1,'open'])
+              security.append(amount[-1]*data['close'].iloc[p+1])
+       elif strategy['tactic'].iloc[p]==1:#买进
+              pos = positions[int(strategy['p_lag'].iloc[p])]
+              delta = pos*(pool[-1]+amount[-1]*data['open'].iloc[p+1])-\
+                          data['open'].iloc[p+1]*amount[-1]
+              amount.append(amount[-1]+delta/data['open'].iloc[p+1])
               pool.append(pool[-1]-delta)
-              security.append(amount[-1]*data.ix[p+1,'close'])
+              security.append(amount[-1]*data['close'].iloc[p+1])
        else:
-              pos = positions[int(strategy.ix[p,'p_lag'])]
-              delta = pos*(pool[-1]+amount[-1]*data.ix[p+1,'open'])-\
-                          data.ix[p+1,'open']*amount[-1]
+              pos = positions[int(strategy['p_lag'].iloc[p])]
+              delta = pos*(pool[-1]+amount[-1]*data['open'].iloc[p+1])-\
+                          data['open'].iloc[p+1]*amount[-1]
               pool.append(pool[-1]-delta)
-              amount.append(amount[-1]+delta/data.ix[p+1,'open'])
-              security.append(amount[-1]*data.ix[p+1,'close'])
+              amount.append(amount[-1]+delta/data['open'].iloc[p+1])
+              security.append(amount[-1]*data['close'].iloc[p+1])
        addup.append(pool[-1]+security[-1])
 
 result = pd.DataFrame({"pool":pool,"amount":amount,"security":security,"addup":addup},
@@ -159,22 +159,25 @@ result = pd.DataFrame({"pool":pool,"amount":amount,"security":security,"addup":a
 ##########################################################
 #####################策略回测结果报告######################
 
-annual_return = (result.ix[-1,'addup']/result.ix[0,'addup']-1)/len(result)*252
-daily_return = ((-result.ix[:,'addup']+result.ix[:,'addup'].shift(-1))/result.ix[:,'addup']).shift(1)
+annual_return = (result['addup'].iloc[-1]/result['addup'].iloc[0]-1)/len(result)*252
+daily_return = ((-result['addup']+result['addup'].shift(-1))/result['addup']).shift(1)
 valatility = daily_return.var()
-risk_free = ts.shibor_data(2015).ix[:,'1Y'].mean()/100#shibor一年平均值作无风险利率
+risk_free = 2/100  #shibor一年平均值作无风险利率, tushare旧接口不提供shibor数据了
 sharp_ratio = (annual_return-risk_free)/valatility  
-drawdown = (result['addup']/pd.expanding_max(result['addup'])-1).sort_values()
-max_drawdown = pd.DataFrame(drawdown.ix[0,0],
-                            index = [drawdown.index[0]],
+drawdown = (result['addup']/(result['addup'])-1).expanding().max().sort_values()
+max_drawdown = pd.DataFrame(drawdown.iloc[0],
+                            index=[drawdown.index[0]],
                             columns=['max_drawdown'])     #最大回撤                 
 
-dr = ((-data.ix[:,'close']+data.ix[:,'close'].shift(-1))/data.ix[:,'close']).shift(1)
+dr = ((-data['close']+data['close'].shift(-1))/data['close']).shift(1)
 tr_r = (1+daily_return.fillna(0)).cumprod()#策略累计收益
 au_r = (1+dr.fillna(0)).cumprod()#股票累计收益
 ###绘图
-au_graph = plt.plot(au_r)
-tr_graph = plt.plot(tr_r)
+plt.plot(au_r)
+plt.show()
+tr_r_x = pd.Series(list(zip(*tr_r.index.to_flat_index()))[0]).to_numpy()
+plt.plot(tr_r_x, tr_r.values)
+plt.show()
 ###说明
 for_print=['年化收益率','夏普比率','方差','最大回撤']
 for_data = [annual_return,sharp_ratio,valatility,max_drawdown]
