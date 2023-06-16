@@ -159,27 +159,30 @@ result = pd.DataFrame({"pool":pool,"amount":amount,"security":security,"addup":a
 ##########################################################
 #####################策略回测结果报告######################
 
+
+def maxdrawdown(arr):
+       i = np.argmax((np.maximum.accumulate(arr) - arr)/np.maximum.accumulate(arr))
+       j = np.argmax(arr[:i])
+       return [1 - arr[i]/arr[j], j, i]
+
 annual_return = (result['addup'].iloc[-1]/result['addup'].iloc[0]-1)/len(result)*252
 daily_return = ((-result['addup']+result['addup'].shift(-1))/result['addup']).shift(1)
 valatility = daily_return.var()
-risk_free = 2/100  #shibor一年平均值作无风险利率, tushare旧接口不提供shibor数据了
-sharp_ratio = (annual_return-risk_free)/valatility  
-drawdown = (result['addup']/(result['addup'])-1).expanding().max().sort_values()
-max_drawdown = pd.DataFrame(drawdown.iloc[0],
-                            index=[drawdown.index[0]],
-                            columns=['max_drawdown'])     #最大回撤                 
+risk_free = 2/100  # shibor一年平均值作无风险利率, tushare旧接口不提供shibor数据了
+sharp_ratio = (annual_return-risk_free)/valatility
+max_drawdown = maxdrawdown(result['addup'])  # 最大回撤
 
 dr = ((-data['close']+data['close'].shift(-1))/data['close']).shift(1)
 tr_r = (1+daily_return.fillna(0)).cumprod()#策略累计收益
 au_r = (1+dr.fillna(0)).cumprod()#股票累计收益
 ###绘图
-plt.plot(au_r)
-plt.show()
+plt.plot(au_r, label='cumulative return from stock')
 tr_r_x = pd.Series(list(zip(*tr_r.index.to_flat_index()))[0]).to_numpy()
-plt.plot(tr_r_x, tr_r.values)
+plt.plot(tr_r_x, tr_r.values, label='cumulative return from grid trading')
+plt.legend()
 plt.show()
 ###说明
 for_print=['年化收益率','夏普比率','方差','最大回撤']
-for_data = [annual_return,sharp_ratio,valatility,max_drawdown]
+for_data = [annual_return,sharp_ratio,valatility,max_drawdown[0]]
 for i in range(4):
        print('{}:{}'.format(for_print[i],for_data[i]))
